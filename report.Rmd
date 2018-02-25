@@ -1,0 +1,162 @@
+---
+title: "Housing Prices report"
+author: "Yoan Bidart"
+date: "2/25/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+Here is a report for solving the House Prices prediction competition on Kaggle. Feel free to fork and comment if you want to contribute!
+
+## Exploratory analysis
+
+```{r include=FALSE}
+library(caret)
+library(dplyr)
+library(ModelMetrics)
+library(ggplot2)
+```
+
+Here is our dataset.
+```{r}
+training <- read.csv(file="train.csv", stringsAsFactors = FALSE)
+str(training)
+```
+We can see we have a lot of features, and some work to do in feature engineering, which is the heart of this challenge. 
+
+## Feature engineering
+We have some variables with a lot of NAs we will get rid of. Some others that we will replace according to the meaning of these variables, accordingly to the data description. 
+
+```{r}
+cleanNa <- function(x) {
+        #replace LotFrontage with the median value
+        x$LotFrontage[is.na(x$LotFrontage)] = median(training$LotFrontage, na.rm=TRUE)
+        #remove Alley
+        x <- select(x, -Alley)
+        #For some variables Na is actually meaning none
+        x$MasVnrType[is.na(x$MasVnrType)] = as.factor("None")
+        x$MasVnrArea[is.na(x$MasVnrArea)] = 0
+        x$BsmtQual[is.na(x$BsmtQual)] = "None"
+        x$BsmtCond[is.na(x$BsmtCond)] = "None"
+        x$BsmtExposure[is.na(x$BsmtExposure)] = "None"
+        x$BsmtFinType1[is.na(x$BsmtFinType1)] = "None"
+        x$BsmtFinType2[is.na(x$BsmtFinType2)] = "None"
+        #replace electrical by the most represented type
+        x$Electrical[is.na(x$Electrical)] = "SBrkr"
+        x$FireplaceQu[is.na(x$FireplaceQu)] = "None"
+        x$GarageType[is.na(x$GarageType)] = "None"
+        x$GarageYrBlt = as.numeric(x$GarageYrBlt)
+        x$GarageYrBlt[is.na(x$GarageYrBlt)] = 0
+        x$GarageFinish[is.na(x$GarageFinish)] = "None"
+        x$GarageQual[is.na(x$GarageQual)] = "None"
+        x$GarageCond[is.na(x$GarageCond)] = "None"
+        x$PoolQC[is.na(x$PoolQC)] = "None"
+        x$Fence[is.na(x$Fence)] = "None"
+        x$MiscFeature[is.na(x$MiscFeature)] = "None"
+        x$GarageYrBlt = as.numeric(x$GarageYrBlt)
+        x
+}
+trainC <- cleanNa(training)
+#replace caracters variables by factors
+for (i in c(1:80)) {
+        x <- is.character(trainC[,i])
+        if (x==TRUE) {
+                trainC[,i] <- as.factor(trainC[,i])
+        }
+}
+```
+We are done with feature engineering.
+
+## Machine Learning
+
+### Create train and test set
+```{r}
+set.seed(7)
+inTrain <- createDataPartition(trainC$Id, p=0.7, list=FALSE)
+train1 <- trainC[inTrain, ]
+test1 <- trainC[-inTrain, ]
+out1 <- test1$SalePrice
+test1 <- select(test1, -SalePrice)
+```
+
+### Model fitting
+After fitting some models we found the best accuracy to combine Gradient Boosting Machine (gbm) and Random Forest (rf).
+```{r eval=FALSE}
+fit1 <- train(SalePrice~., data=train1, method="gbm", verbose=FALSE)
+fit2 <- train(SalePrice~., data=train1, method="rf")
+```
+```{r echo=FALSE}
+load(file="fit1.Rdata")
+load(file="fit2.Rdata")
+```
+
+### Predicting and evaluating model
+```{r}
+pred1 <- predict(fit1, test1)
+accu <- data.frame(fit = "gbm", rmse = rmse(log(out1), log(pred1)))
+pred2 <- predict(fit2, test1)
+accu <- rbind(accu, data.frame(fit="rf", rmse=rmse(log(out1), log(pred2))))
+#compute the mean of the two predictions
+input3 <- as.data.frame(cbind(pred1, pred2))
+pred3 <- apply(input3, 1, mean )
+accu <- rbind(accu, data.frame(fit="+mean", rmse=rmse(log(out1), log(pred3))))
+qplot(fit, rmse, data=accu)
+```
+We can see that our Root Mean Squared Error is lower when combining the two models. 
+
+### Creating output for the competition
+```{r}
+testing <- read.csv(file="test.csv", stringsAsFactors = FALSE)
+#preprocessing
+testC <- cleanNa(testing)
+for (i in c(1:79)) {
+        x <- is.character(testC[,i])
+        if (x==TRUE) {
+                testC[,i] <- as.factor(testC[,i])
+        }
+}
+```
+Some NA values where present in the test set provided, we created a function to replace them with median or most represented values.
+```{r}
+testNa <- function(test1) {
+        i <- c(456, 757, 791)
+        test1[i,3] = "RM"
+        test1[1445, 3] = "RL"
+        
+        test1$Utilities[is.na(test1$Utilities)] <- "AllPub"
+        test1$Exterior1st[is.na(test1$Exterior1st)] <- "VinylSd"
+        test1$Exterior2nd[is.na(test1$Exterior2nd)] <- "VinylSd"
+        test1$BsmtFinSF1[is.na(test1$BsmtFinSF1)] <- 0
+        test1$BsmtFinSF2[is.na(test1$BsmtFinSF2)] <- 0
+        test1$BsmtUnfSF[is.na(test1$BsmtUnfSF)] <- 0
+        test1$TotalBsmtSF[is.na(test1$TotalBsmtSF)] <- 0
+        test1$BsmtHalfBath[is.na(test1$BsmtHalfBath)] <- 0
+        test1$KitchenQual[is.na(test1$KitchenQual)] <- "TA"
+        test1$Functional[is.na(test1$Functional)] <- "Typ"
+        test1$GarageCars[is.na(test1$GarageCars)] <- median(test1$GarageCars, na.rm=TRUE)
+        test1$GarageArea[is.na(test1$GarageArea)] <- median(test1$GarageArea, na.rm=TRUE)
+        test1$SaleType[is.na(test1$SaleType)] <- "WD"
+        test1$BsmtFullBath[is.na(test1$BsmtFullBath)] <- 0
+        
+        test1
+}
+test1 <- testNa(testC)
+```
+
+Prediction time !
+```{r}
+pred1 <- predict(fit1, test1)
+pred2 <- predict(fit2, test1)
+input3 <- as.data.frame(cbind(pred1, pred2))
+pred4 <- apply(input3, 1, mean )
+submission <- cbind.data.frame(test1$Id, pred4)
+names(submission) <- c("Id", "SalePrice")
+write.csv(submission, file="sub.csv", row.names=FALSE)
+```
+
+That's it !! As you can see this competition was really about data cleaning and feature engineering.
