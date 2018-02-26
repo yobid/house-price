@@ -129,6 +129,10 @@ $(document).ready(function () {
 </div>
 <div id="exploratory-analysis" class="section level2">
 <h2>Exploratory analysis</h2>
+<pre class="r"><code>library(caret)
+library(dplyr)
+library(ModelMetrics)
+library(ggplot2)</code></pre>
 <p>Here is our dataset.</p>
 <pre class="r"><code>training &lt;- read.csv(file=&quot;train.csv&quot;, stringsAsFactors = FALSE)
 str(training)</code></pre>

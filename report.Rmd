@@ -22,6 +22,13 @@ library(ModelMetrics)
 library(ggplot2)
 ```
 
+```{r eval=FALSE}
+library(caret)
+library(dplyr)
+library(ModelMetrics)
+library(ggplot2)
+```
+
 Here is our dataset.
 ```{r}
 training <- read.csv(file="train.csv", stringsAsFactors = FALSE)
